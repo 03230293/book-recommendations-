@@ -1,9 +1,12 @@
 import pandas as pd
 
+def is_ascii(s):
+    return all(ord(c) < 128 for c in s)
+
 def filter_english_books(input_file, output_file):
     try:
-        # Load the dataset
-        df = pd.read_csv(input_file)
+        # Load the dataset with low_memory=False to suppress DtypeWarning
+        df = pd.read_csv(input_file, low_memory=False)
 
         # Display the first few rows and columns to understand the structure
         print("Original DataFrame:")
@@ -17,7 +20,7 @@ def filter_english_books(input_file, output_file):
                 raise ValueError(f"Missing required column: {col}")
 
         # Filter for English books based on ASCII characters in titles and authors
-        df = df[df['Book-Title'].str.isascii() & df['Book-Author'].str.isascii()]
+        df = df[df['Book-Title'].apply(is_ascii) & df['Book-Author'].apply(is_ascii)]
 
         # Select only the specified columns
         filtered_df = df[required_columns]
