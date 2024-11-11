@@ -1,71 +1,57 @@
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
-# Load dataset
-df = pd.read_csv('books.csv')
-
-# Debug: Print the columns to check for issues
-print("Columns in the DataFrame:", df.columns)
-
-# Clean the data
-df.columns = df.columns.str.strip()  # Strip whitespace from column names
-
-# Check if required columns exist
-required_columns = ['Book-Title', 'Description']
-for col in required_columns:
-    if col not in df.columns:
-        print(f"Error: Column '{col}' not found in the dataset.")
-        exit()
-
-# Clean the 'Book-Title' and 'Description' columns
-df['Book-Title'] = df['Book-Title'].str.lower().str.replace(r'[^\w\s]', '', regex=True)
-df['Description'] = df['Description'].str.lower().str.replace(r'[^\w\s]', '', regex=True)
-
-# Drop duplicates
-df.drop_duplicates(subset='Book-Title', inplace=True)
-
-# Create TF-IDF vectorizer
-tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(df['Description'].fillna(''))  # Fill NaN with empty string
-
-# Calculate cosine similarity
-cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
-
-# Recommendation function
-def recommend_books(title, cosine_sim=cosine_sim, df=df, n=5):
-    # Get the index of the book that matches the title
+def filter_english_books(input_file, output_file):
     try:
-        idx = df.index[df['Book-Title'] == title].tolist()[0]
-    except IndexError:
-        return f"Book titled '{title}' not found in the database."
+        # Load the dataset
+        df = pd.read_csv(input_file)
 
-    # Get the pairwise similarity scores of all books with that book
-    sim_scores = list(enumerate(cosine_sim[idx]))
+        # Display the first few rows and columns to understand the structure
+        print("Original DataFrame:")
+        print(df.head())
+        print("Columns in the DataFrame:", df.columns)
 
-    # Sort the books based on the similarity scores
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+        # Check if the necessary columns exist
+        required_columns = ['ISBN', 'Book-Title', 'Book-Author', 'Year-Of-Publication', 'Publisher', 'Image-URL-S', 'Image-URL-M', 'Image-URL-L']
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f"Missing required column: {col}")
 
-    # Get the scores of the N most similar books
-    sim_scores = sim_scores[1:n+1]
+        # Filter for English books based on ASCII characters in titles and authors
+        df = df[df['Book-Title'].str.isascii() & df['Book-Author'].str.isascii()]
 
-    # Get the book indices
-    book_indices = [i[0] for i in sim_scores]
+        # Select only the specified columns
+        filtered_df = df[required_columns]
 
-    # Return the top N most similar books
-    return df['Book-Title'].iloc[book_indices]
+        # Check if the filtered DataFrame is empty
+        if filtered_df.empty:
+            print("There are no English books available in the dataset.")
+            return  # Exit the function if no books are found
+        else:
+            # Save the filtered DataFrame to a new CSV file
+            filtered_df.to_csv(output_file, index=False)
+            print("Filtered DataFrame:")
+            print(filtered_df.head())
+
+            # Ask the user for a book recommendation
+            recommended_book = input("Please enter the title of a book you recommend: ")
+
+            # Check if the recommended book is in the filtered DataFrame
+            if recommended_book in filtered_df['Book-Title'].values:
+                print(f"Thank you for your recommendation! '{recommended_book}' is available.")
+            else:
+                print(f"Sorry, '{recommended_book}' is not found in the filtered list of English books.")
+
+    except FileNotFoundError:
+        print(f"Error: The file '{input_file}' was not found.")
+    except pd.errors.EmptyDataError:
+        print("Error: The input file is empty.")
+    except ValueError as ve:
+        print(f"ValueError: {ve}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 # Example usage
 if __name__ == "__main__":
-    # Prompt user for the book title
-    user_input = input("Enter the title of the book you want recommendations for: ").strip().lower()
-    
-    # Recommend books based on user input
-    recommended_books = recommend_books(user_input)
-    
-    # Check if the result is a string or a DataFrame
-    if isinstance(recommended_books, str):
-        print(recommended_books)  # Print the error message
-    else:
-        print("Recommended Books:")
-        print(recommended_books.to_string(index=False))
+    input_file = 'books.csv'  # Input CSV file containing the book data
+    output_file = 'english_books_filtered.csv'  # Output CSV file for filtered data
+    filter_english_books(input_file, output_file)
